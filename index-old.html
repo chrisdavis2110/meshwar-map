@@ -60,30 +60,6 @@
             font-weight: 500;
         }
         
-        .layer-toggles {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid #444;
-        }
-        
-        .toggle-item {
-            display: flex;
-            align-items: center;
-            margin: 6px 0;
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        .toggle-item input[type="checkbox"] {
-            margin-right: 8px;
-            cursor: pointer;
-        }
-        
-        .toggle-item label {
-            cursor: pointer;
-            font-size: 13px;
-        }
-        
         .loading {
             position: absolute;
             top: 50%;
@@ -92,6 +68,23 @@
             font-size: 18px;
             color: #00e676;
             z-index: 2000;
+        }
+        
+        /* Custom marker styles */
+        .sample-marker {
+            background: rgba(0, 230, 118, 0.8);
+            border: 2px solid #00e676;
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+        }
+        
+        .sample-marker:hover {
+            background: #00e676;
+            width: 16px;
+            height: 16px;
+            margin-left: -2px;
+            margin-top: -2px;
         }
         
         /* Popup styling */
@@ -165,10 +158,6 @@
             color: #000;
         }
         
-        body.light-theme .layer-toggles {
-            border-top-color: #ddd;
-        }
-        
         body.light-theme .theme-toggle {
             background: rgba(255, 255, 255, 0.95);
             color: #000;
@@ -219,21 +208,9 @@
             <span class="stat-label">Last Update:</span>
             <span class="stat-value" id="last-update">Never</span>
         </div>
-        
-        <div class="layer-toggles">
-            <div class="toggle-item">
-                <input type="checkbox" id="toggle-coverage" checked onchange="toggleCoverage()">
-                <label for="toggle-coverage">Show Coverage</label>
-            </div>
-            <div class="toggle-item">
-                <input type="checkbox" id="toggle-samples" onchange="toggleSamples()">
-                <label for="toggle-samples">Show Samples</label>
-            </div>
-        </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/ngeohash@0.6.3/main.js"></script>
     <script>
         // Theme management
         let isDarkTheme = true;
@@ -287,75 +264,8 @@
         updateMapTiles();
         updateThemeIcon();
         
-        // Layer groups
-        const coverageLayer = L.layerGroup().addTo(map);
-        const samplesLayer = L.layerGroup();
-        
-        // Toggle functions
-        function toggleCoverage() {
-            if (document.getElementById('toggle-coverage').checked) {
-                map.addLayer(coverageLayer);
-            } else {
-                map.removeLayer(coverageLayer);
-            }
-        }
-        
-        function toggleSamples() {
-            if (document.getElementById('toggle-samples').checked) {
-                map.addLayer(samplesLayer);
-            } else {
-                map.removeLayer(samplesLayer);
-            }
-        }
-        
-        // Geohash to bounds conversion
-        function geohashToBounds(hash) {
-            const bounds = geohash.decode_bbox(hash);
-            return [[bounds[0], bounds[1]], [bounds[2], bounds[3]]];
-        }
-        
-        // Color based on RSSI quality
-        function getQualityColor(avgRssi) {
-            if (avgRssi >= -70) return '#00ff00'; // Excellent (green)
-            if (avgRssi >= -85) return '#7fff00'; // Good (yellow-green)
-            if (avgRssi >= -95) return '#ffff00'; // Fair (yellow)
-            if (avgRssi >= -105) return '#ff8800'; // Poor (orange)
-            return '#ff0000'; // Very poor (red)
-        }
-        
-        // Aggregate samples into coverage cells
-        function aggregateCoverage(samples) {
-            const coverage = {};
-            
-            samples.forEach(sample => {
-                const lat = sample.latitude || sample.lat;
-                const lng = sample.longitude || sample.lng;
-                
-                if (!lat || !lng) return;
-                
-                // Encode to geohash (precision 7 ~= 153m x 153m)
-                const hash = geohash.encode(lat, lng, 7);
-                
-                if (!coverage[hash]) {
-                    coverage[hash] = {
-                        hash: hash,
-                        samples: 0,
-                        totalRssi: 0,
-                        nodes: new Set()
-                    };
-                }
-                
-                coverage[hash].samples++;
-                if (sample.rssi) {
-                    coverage[hash].totalRssi += sample.rssi;
-                }
-                if (sample.nodeId) {
-                    coverage[hash].nodes.add(sample.nodeId);
-                }
-            });
-            
-            return Object.values(coverage);
-        }
+        // Store markers
+        const markers = L.layerGroup().addTo(map);
         
         // Fetch and display data
         async function loadData() {
@@ -370,44 +280,15 @@
                     return;
                 }
                 
-                // Clear existing layers
-                coverageLayer.clearLayers();
-                samplesLayer.clearLayers();
+                // Clear existing markers
+                markers.clearLayers();
                 
                 // Track unique nodes
                 const uniqueNodes = new Set();
                 let totalRssi = 0;
                 let rssiCount = 0;
                 
-                // Aggregate coverage
-                const coverage = aggregateCoverage(data.samples);
-                
-                // Draw coverage squares
-                coverage.forEach(cell => {
-                    const avgRssi = cell.totalRssi / cell.samples;
-                    const bounds = geohashToBounds(cell.hash);
-                    const color = getQualityColor(avgRssi);
-                    
-                    const rectangle = L.rectangle(bounds, {
-                        color: color,
-                        fillColor: color,
-                        fillOpacity: 0.3,
-                        weight: 1
-                    });
-                    
-                    const popupContent = `
-                        <div class="popup-content">
-                            <div><span class="popup-label">Samples:</span><strong>${cell.samples}</strong></div>
-                            <div><span class="popup-label">Avg RSSI:</span>${avgRssi.toFixed(1)} dBm</div>
-                            <div><span class="popup-label">Nodes:</span>${cell.nodes.size}</div>
-                        </div>
-                    `;
-                    
-                    rectangle.bindPopup(popupContent);
-                    coverageLayer.addLayer(rectangle);
-                });
-                
-                // Add sample markers
+                // Add markers for each sample
                 data.samples.forEach(sample => {
                     const lat = sample.latitude || sample.lat;
                     const lng = sample.longitude || sample.lng;
@@ -421,15 +302,17 @@
                         rssiCount++;
                     }
                     
+                    // Create custom marker
                     const marker = L.circleMarker([lat, lng], {
-                        radius: 4,
+                        radius: 6,
                         fillColor: '#00e676',
                         color: '#00e676',
-                        weight: 1,
+                        weight: 2,
                         opacity: 0.8,
                         fillOpacity: 0.6
                     });
                     
+                    // Popup content
                     const popupContent = `
                         <div class="popup-content">
                             <div><span class="popup-label">Node:</span><strong>${sample.nodeId || 'Unknown'}</strong></div>
@@ -440,7 +323,7 @@
                     `;
                     
                     marker.bindPopup(popupContent);
-                    samplesLayer.addLayer(marker);
+                    markers.addLayer(marker);
                 });
                 
                 // Update stats
@@ -450,11 +333,10 @@
                     rssiCount > 0 ? `${(totalRssi / rssiCount).toFixed(1)} dBm` : 'N/A';
                 document.getElementById('last-update').textContent = new Date().toLocaleString();
                 
-                // Fit map to coverage
-                if (coverage.length > 0) {
-                    const allBounds = coverage.map(cell => geohashToBounds(cell.hash));
-                    const group = L.featureGroup(allBounds.map(b => L.rectangle(b)));
-                    map.fitBounds(group.getBounds(), { padding: [50, 50] });
+                // Fit map to markers
+                if (data.samples.length > 0) {
+                    const bounds = markers.getBounds();
+                    map.fitBounds(bounds, { padding: [50, 50] });
                 }
                 
             } catch (error) {
