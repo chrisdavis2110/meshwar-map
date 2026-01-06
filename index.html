@@ -395,11 +395,18 @@
                         weight: 1
                     });
                     
+                    // Get first 2 chars of each node ID
+                    const nodePrefixes = Array.from(cell.nodes)
+                        .map(nodeId => nodeId.substring(0, 2))
+                        .sort()
+                        .join(', ');
+                    
                     const popupContent = `
                         <div class="popup-content">
                             <div><span class="popup-label">Samples:</span><strong>${cell.samples}</strong></div>
                             <div><span class="popup-label">Avg RSSI:</span>${avgRssi.toFixed(1)} dBm</div>
                             <div><span class="popup-label">Nodes:</span>${cell.nodes.size}</div>
+                            <div><span class="popup-label">Repeaters:</span>${nodePrefixes || 'None'}</div>
                         </div>
                     `;
                     
