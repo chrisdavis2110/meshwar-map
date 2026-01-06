@@ -347,8 +347,10 @@
                 }
                 
                 coverage[hash].samples++;
-                if (sample.rssi) {
-                    coverage[hash].totalRssi += sample.rssi;
+                // Convert RSSI to number and check if valid
+                const rssi = Number(sample.rssi);
+                if (!isNaN(rssi) && rssi !== 0) {
+                    coverage[hash].totalRssi += rssi;
                     coverage[hash].rssiCount++;
                 }
                 if (sample.nodeId) {
@@ -383,6 +385,15 @@
                 
                 // Aggregate coverage
                 const coverage = aggregateCoverage(data.samples);
+                
+                // Debug: log first sample
+                if (data.samples.length > 0) {
+                    console.log('Sample example:', data.samples[0]);
+                    console.log('Coverage cells:', coverage.length);
+                    if (coverage.length > 0) {
+                        console.log('First cell:', coverage[0]);
+                    }
+                }
                 
                 // Draw coverage squares
                 coverage.forEach(cell => {
