@@ -613,7 +613,10 @@
                     
                     if (!lat || !lng) return;
                     
-                    uniqueNodes.add(sample.nodeId);
+                    // Only count actual repeaters (not Unknown)
+                    if (sample.nodeId && sample.nodeId !== 'Unknown') {
+                        uniqueNodes.add(sample.nodeId);
+                    }
                     
                     const marker = L.circleMarker([lat, lng], {
                         radius: 4,
