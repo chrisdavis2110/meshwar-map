@@ -425,7 +425,13 @@
         }
         
         // Initialize map
-        const map = L.map('map').setView([47.6062, -122.3321], 10);
+        const map = L.map('map', {
+            center: [47.6062, -122.3321],
+            zoom: 10,
+            worldCopyJump: false,
+            maxBounds: [[-90, -180], [90, 180]],
+            maxBoundsViscosity: 1.0
+        });
         
         // Apply initial theme
         updateMapTiles();
@@ -503,8 +509,8 @@
                 
                 if (!lat || !lng) return;
                 
-                // Encode to geohash (precision 7 ~= 153m x 153m)
-                const hash = Geohash.encode(lat, lng, 7);
+                // Encode to geohash (precision 6 ~= 1.2km x 610m)
+                const hash = Geohash.encode(lat, lng, 6);
                 
                 if (!coverage[hash]) {
                     coverage[hash] = {
