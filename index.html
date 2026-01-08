@@ -526,7 +526,8 @@
                     coverage[hash].lost++;
                 }
                 
-                if (sample.nodeId) {
+                // Only track actual repeater IDs (not Unknown)
+                if (sample.nodeId && sample.nodeId !== 'Unknown') {
                     coverage[hash].nodes.add(sample.nodeId);
                 }
             });
