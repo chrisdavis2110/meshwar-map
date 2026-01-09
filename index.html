@@ -231,6 +231,111 @@
         body.light-theme .popup-label {
             color: #666;
         }
+        
+        /* Measure tool */
+        .measure-control {
+            position: absolute;
+            top: 80px;
+            right: 10px;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            min-width: 200px;
+        }
+        
+        body.light-theme .measure-control {
+            background: rgba(255, 255, 255, 0.95);
+        }
+        
+        .measure-btn {
+            width: 100%;
+            padding: 8px;
+            background: #00e676;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: background 0.3s;
+        }
+        
+        .measure-btn:hover {
+            background: #00c853;
+        }
+        
+        .measure-btn.active {
+            background: #ff5252;
+        }
+        
+        .measure-btn.active:hover {
+            background: #ff1744;
+        }
+        
+        .unit-selector {
+            margin-top: 8px;
+            display: flex;
+            gap: 4px;
+        }
+        
+        .unit-btn {
+            flex: 1;
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.3s;
+        }
+        
+        body.light-theme .unit-btn {
+            background: rgba(0, 0, 0, 0.05);
+            color: #000;
+            border-color: rgba(0, 0, 0, 0.2);
+        }
+        
+        .unit-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        body.light-theme .unit-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        
+        .unit-btn.active {
+            background: #00e676;
+            color: #000;
+            border-color: #00e676;
+        }
+        
+        .measure-info {
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(0, 230, 118, 0.1);
+            border-radius: 4px;
+            font-size: 12px;
+            text-align: center;
+            display: none;
+        }
+        
+        .measure-info.show {
+            display: block;
+        }
+        
+        .measure-distance {
+            font-size: 18px;
+            font-weight: 700;
+            color: #00e676;
+            margin: 4px 0;
+        }
+        
+        body.light-theme .measure-distance {
+            color: #00c853;
+        }
     </style>
 </head>
 <body>
@@ -240,6 +345,20 @@
     
     <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark theme">
         <span class="theme-toggle-icon" id="theme-icon">☀️</span>
+    </div>
+    
+    <div class="measure-control">
+        <button class="measure-btn" id="measure-btn" onclick="toggleMeasure()">📏 Measure Distance</button>
+        <div class="unit-selector">
+            <button class="unit-btn active" data-unit="km" onclick="setUnit('km')">km</button>
+            <button class="unit-btn" data-unit="mi" onclick="setUnit('mi')">mi</button>
+            <button class="unit-btn" data-unit="m" onclick="setUnit('m')">m</button>
+            <button class="unit-btn" data-unit="ft" onclick="setUnit('ft')">ft</button>
+        </div>
+        <div class="measure-info" id="measure-info">
+            <div style="font-size: 11px; color: #aaa;">Distance</div>
+            <div class="measure-distance" id="measure-distance">0 km</div>
+        </div>
     </div>
     
     <div class="info-panel">
@@ -440,6 +559,145 @@
         // Layer groups
         const coverageLayer = L.layerGroup().addTo(map);
         const samplesLayer = L.layerGroup();
+        const measureLayer = L.layerGroup().addTo(map);
+        
+        // Measure tool state
+        let measureActive = false;
+        let measurePoints = [];
+        let measureUnit = 'km';
+        let measureMarkers = [];
+        let measureLine = null;
+        
+        // Calculate distance between two points (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in kilometers
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c; // Distance in kilometers
+        }
+        
+        // Convert distance to selected unit
+        function convertDistance(distanceKm) {
+            switch(measureUnit) {
+                case 'mi': return distanceKm * 0.621371;
+                case 'm': return distanceKm * 1000;
+                case 'ft': return distanceKm * 3280.84;
+                default: return distanceKm;
+            }
+        }
+        
+        // Format distance with unit
+        function formatDistance(distanceKm) {
+            const converted = convertDistance(distanceKm);
+            let formatted;
+            
+            if (measureUnit === 'm' || measureUnit === 'ft') {
+                formatted = Math.round(converted).toLocaleString();
+            } else {
+                formatted = converted.toFixed(2);
+            }
+            
+            return `${formatted} ${measureUnit}`;
+        }
+        
+        // Update distance display
+        function updateMeasureDisplay() {
+            if (measurePoints.length === 2) {
+                const distance = calculateDistance(
+                    measurePoints[0].lat, measurePoints[0].lng,
+                    measurePoints[1].lat, measurePoints[1].lng
+                );
+                document.getElementById('measure-distance').textContent = formatDistance(distance);
+                document.getElementById('measure-info').classList.add('show');
+            } else {
+                document.getElementById('measure-info').classList.remove('show');
+            }
+        }
+        
+        // Toggle measure mode
+        function toggleMeasure() {
+            measureActive = !measureActive;
+            const btn = document.getElementById('measure-btn');
+            
+            if (measureActive) {
+                btn.classList.add('active');
+                btn.textContent = '✕ Cancel Measure';
+                map.getContainer().style.cursor = 'crosshair';
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '📏 Measure Distance';
+                map.getContainer().style.cursor = '';
+                clearMeasure();
+            }
+        }
+        
+        // Clear measure points
+        function clearMeasure() {
+            measurePoints = [];
+            measureMarkers.forEach(marker => measureLayer.removeLayer(marker));
+            measureMarkers = [];
+            if (measureLine) {
+                measureLayer.removeLayer(measureLine);
+                measureLine = null;
+            }
+            updateMeasureDisplay();
+        }
+        
+        // Set unit
+        function setUnit(unit) {
+            measureUnit = unit;
+            document.querySelectorAll('.unit-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.unit === unit);
+            });
+            updateMeasureDisplay();
+        }
+        
+        // Handle map clicks for measuring
+        map.on('click', function(e) {
+            if (!measureActive) return;
+            
+            if (measurePoints.length < 2) {
+                measurePoints.push(e.latlng);
+                
+                // Add marker
+                const marker = L.circleMarker(e.latlng, {
+                    radius: 6,
+                    fillColor: '#00e676',
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 1
+                });
+                
+                const label = measurePoints.length === 1 ? 'Point A' : 'Point B';
+                marker.bindPopup(label).openPopup();
+                measureMarkers.push(marker);
+                measureLayer.addLayer(marker);
+                
+                // Draw line if we have 2 points
+                if (measurePoints.length === 2) {
+                    measureLine = L.polyline(measurePoints, {
+                        color: '#00e676',
+                        weight: 3,
+                        opacity: 0.8,
+                        dashArray: '10, 5'
+                    });
+                    measureLayer.addLayer(measureLine);
+                    updateMeasureDisplay();
+                    
+                    // Auto-deactivate after measurement
+                    setTimeout(() => {
+                        if (measureActive) {
+                            toggleMeasure();
+                        }
+                    }, 100);
+                }
+            }
+        });
         
         // Toggle functions
         function toggleCoverage() {
