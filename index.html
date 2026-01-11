@@ -232,6 +232,130 @@
             color: #666;
         }
         
+        /* Clickable repeater links */
+        .repeater-link {
+            color: #00e676;
+            cursor: pointer;
+            text-decoration: underline;
+            margin: 0 2px;
+        }
+        
+        .repeater-link:hover {
+            color: #00ff88;
+        }
+        
+        body.light-theme .repeater-link {
+            color: #00c853;
+        }
+        
+        body.light-theme .repeater-link:hover {
+            color: #00a03e;
+        }
+        
+        /* Modal for repeater details */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: #1e1e1e;
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        body.light-theme .modal-content {
+            background: #ffffff;
+            color: #000;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+        
+        body.light-theme .modal-header {
+            border-bottom-color: #ddd;
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #00e676;
+        }
+        
+        body.light-theme .modal-title {
+            color: #00c853;
+        }
+        
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            font-size: 28px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+        }
+        
+        .modal-close:hover {
+            color: #fff;
+        }
+        
+        body.light-theme .modal-close:hover {
+            color: #000;
+        }
+        
+        .signal-entry {
+            padding: 10px;
+            margin: 8px 0;
+            background: rgba(0, 230, 118, 0.1);
+            border-radius: 4px;
+            border-left: 3px solid #00e676;
+        }
+        
+        body.light-theme .signal-entry {
+            background: rgba(0, 200, 83, 0.1);
+            border-left-color: #00c853;
+        }
+        
+        .signal-entry div {
+            margin: 4px 0;
+            font-size: 13px;
+        }
+        
+        .signal-label {
+            color: #aaa;
+            display: inline-block;
+            width: 80px;
+        }
+        
+        body.light-theme .signal-label {
+            color: #666;
+        }
+        
         .resolution-select {
             width: 100%;
             padding: 6px;
@@ -562,6 +686,19 @@
             <div class="legend-item">
                 <div class="legend-color" style="background: #cccccc;"></div>
                 <span>No Ping Data</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for repeater signal details -->
+    <div class="modal" id="signal-modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title" id="modal-title">Repeater Signals</div>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body">
+                <!-- Signal entries will be inserted here -->
             </div>
         </div>
     </div>
@@ -1084,9 +1221,15 @@
                 
                 // Only show repeater info if at least one ping was received
                 if (cell.received > 0) {
+                    // Make each repeater prefix clickable
+                    const clickableRepeaters = uniquePrefixes.map(prefix => 
+                        `<span class="repeater-link" onclick="showRepeaterSignals('${prefix}', '${cell.hash}')">${prefix}</span>`
+                    ).join(', ');
+                    
                     popupContent += `
                         <div><span class="popup-label">Repeaters Heard:</span><strong>${uniquePrefixes.length}</strong></div>
-                        <div><span class="popup-label">Repeater IDs:</span>${nodePrefixes || 'None'}</div>`;
+                        <div><span class="popup-label">Repeater IDs:</span>${clickableRepeaters || 'None'}</div>
+                        <div style="font-size: 10px; color: #888; margin-top: 4px;">Click repeater ID to see signal data</div>`;
                 }
                 
                 popupContent += `
@@ -1164,6 +1307,90 @@
                 console.error('Error loading data:', error);
                 document.getElementById('loading').textContent = 'Error loading data. Check console.';
             }
+        }
+        
+        // Modal functions
+        function closeModal(event) {
+            // Only close if clicking outside content or on close button
+            if (!event || event.target.id === 'signal-modal') {
+                document.getElementById('signal-modal').classList.remove('show');
+            }
+        }
+        
+        function showRepeaterSignals(repeaterPrefix, geohash) {
+            if (!cachedSamples) return;
+            
+            // Filter samples in this coverage area that heard this repeater
+            const samplesInArea = cachedSamples.filter(sample => {
+                const lat = sample.latitude || sample.lat;
+                const lng = sample.longitude || sample.lng;
+                if (!lat || !lng) return false;
+                
+                const sampleHash = Geohash.encode(lat, lng, coveragePrecision);
+                return sampleHash === geohash;
+            });
+            
+            // Find samples that heard this specific repeater (by prefix)
+            const repeaterSamples = samplesInArea.filter(sample => {
+                const nodeId = sample.nodeId || sample.path;
+                return nodeId && nodeId.toUpperCase().startsWith(repeaterPrefix.toUpperCase());
+            });
+            
+            // Filter out samples without RSSI/SNR data and sort by timestamp (newest first)
+            const samplesWithSignals = repeaterSamples
+                .filter(s => s.rssi !== null && s.rssi !== undefined)
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            if (samplesWithSignals.length === 0) {
+                alert('No signal data available for this repeater in this area');
+                return;
+            }
+            
+            // Calculate average signal values
+            const avgRssi = (samplesWithSignals.reduce((sum, s) => sum + (s.rssi || 0), 0) / samplesWithSignals.length).toFixed(1);
+            const avgSnr = samplesWithSignals.some(s => s.snr !== null && s.snr !== undefined)
+                ? (samplesWithSignals.filter(s => s.snr !== null && s.snr !== undefined).reduce((sum, s) => sum + (s.snr || 0), 0) / 
+                   samplesWithSignals.filter(s => s.snr !== null && s.snr !== undefined).length).toFixed(1)
+                : 'N/A';
+            
+            // Build modal content
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            
+            modalTitle.textContent = `Repeater ${repeaterPrefix} - Signal Data`;
+            
+            let bodyContent = `
+                <div style="margin-bottom: 15px; padding: 10px; background: rgba(0, 230, 118, 0.15); border-radius: 4px;">
+                    <div style="font-weight: 600; margin-bottom: 8px;">Summary (${samplesWithSignals.length} samples)</div>
+                    <div style="font-size: 13px;"><span class="signal-label">Avg RSSI:</span><strong>${avgRssi} dBm</strong></div>
+                    <div style="font-size: 13px;"><span class="signal-label">Avg SNR:</span><strong>${avgSnr !== 'N/A' ? avgSnr + ' dB' : 'N/A'}</strong></div>
+                </div>
+                <div style="font-size: 12px; color: #aaa; margin-bottom: 8px;">Recent Samples (newest first):</div>
+            `;
+            
+            // Show up to 10 most recent samples
+            samplesWithSignals.slice(0, 10).forEach(sample => {
+                const timestamp = new Date(sample.timestamp).toLocaleString();
+                const nodeId = sample.nodeId || sample.path || 'Unknown';
+                const rssi = sample.rssi !== null && sample.rssi !== undefined ? `${sample.rssi} dBm` : 'N/A';
+                const snr = sample.snr !== null && sample.snr !== undefined ? `${sample.snr} dB` : 'N/A';
+                
+                bodyContent += `
+                    <div class="signal-entry">
+                        <div><span class="signal-label">Time:</span>${timestamp}</div>
+                        <div><span class="signal-label">Repeater:</span><strong>${nodeId}</strong></div>
+                        <div><span class="signal-label">RSSI:</span><strong style="color: #00e676;">${rssi}</strong></div>
+                        <div><span class="signal-label">SNR:</span><strong style="color: #00e676;">${snr}</strong></div>
+                    </div>
+                `;
+            });
+            
+            if (samplesWithSignals.length > 10) {
+                bodyContent += `<div style="text-align: center; color: #888; font-size: 11px; margin-top: 8px;">... and ${samplesWithSignals.length - 10} more</div>`;
+            }
+            
+            modalBody.innerHTML = bodyContent;
+            document.getElementById('signal-modal').classList.add('show');
         }
         
         // Load data on page load
