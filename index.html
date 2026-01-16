@@ -662,7 +662,7 @@
         </div>
         
         <div class="legend">
-            <div class="legend-title">Coverage Legend</div>
+            <div class="legend-title">Coverage Quality</div>
             <div class="legend-item">
                 <div class="legend-color" style="background: #00ff00;"></div>
                 <span>≥80% - Very Reliable</span>
@@ -686,6 +686,20 @@
             <div class="legend-item">
                 <div class="legend-color" style="background: #cccccc;"></div>
                 <span>No Ping Data</span>
+            </div>
+            
+            <div class="legend-title" style="margin-top: 10px;">Data Freshness</div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00ff00; opacity: 1.0; border: 2px solid #00ff00;"></div>
+                <span>Live (&lt;7 days)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffff00; opacity: 0.8; border: 2px solid #ffff00;"></div>
+                <span>Recent (7-30 days)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #888; opacity: 0.6; border: 2px dashed #888;"></div>
+                <span>Last Known (&gt;30 days)</span>
             </div>
         </div>
     </div>
@@ -1241,6 +1255,25 @@
             });
         }
         
+        // Calculate age in days
+        function ageInDays(timestamp) {
+            const now = new Date();
+            const sampleDate = new Date(timestamp);
+            const diffMs = now - sampleDate;
+            return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        }
+        
+        // Get freshness status for a coverage cell
+        function getFreshnessStatus(daysOld) {
+            if (daysOld <= 7) {
+                return { label: '🟢 Live Coverage', color: '#00ff00', opacity: 1.0, dashArray: null };
+            } else if (daysOld <= 30) {
+                return { label: `🟡 Recent Coverage (${daysOld} days ago)`, color: '#ffff00', opacity: 0.8, dashArray: null };
+            } else {
+                return { label: `⚪ Last Known Coverage (${daysOld} days ago)`, color: '#888888', opacity: 0.6, dashArray: '5, 5' };
+            }
+        }
+        
         // Fetch and display data
         async function loadData() {
             try {
@@ -1249,57 +1282,70 @@
                 
                 document.getElementById('loading').style.display = 'none';
                 
-                if (!data.samples || data.samples.length === 0) {
-                    console.log('No samples found');
+                if (!data.coverage || Object.keys(data.coverage).length === 0) {
+                    console.log('No coverage data found');
                     return;
                 }
                 
-                // Cache samples for resolution changes
-                cachedSamples = data.samples;
+                // Cache coverage for resolution changes (convert to old format for compatibility)
+                cachedSamples = data.coverage;
                 
-                // Render coverage with current precision
-                renderCoverage(data.samples);
+                // Clear existing coverage layer
+                coverageLayer.clearLayers();
                 
-                // Clear existing sample layer
-                samplesLayer.clearLayers();
-                
-                // Track unique nodes
+                // Track unique nodes and total samples
                 const uniqueNodes = new Set();
+                let totalSamples = 0;
                 
-                // Add sample markers
-                data.samples.forEach(sample => {
-                    const lat = sample.latitude || sample.lat;
-                    const lng = sample.longitude || sample.lng;
+                // Render coverage squares
+                Object.entries(data.coverage).forEach(([hash, cell]) => {
+                    const bounds = geohashToBounds(hash);
+                    const daysOld = ageInDays(cell.lastUpdate);
+                    const freshness = getFreshnessStatus(daysOld);
                     
-                    if (!lat || !lng) return;
+                    // Get color based on success rate
+                    const color = getCoverageColor(cell.received, cell.lost);
                     
-                    // Only count actual repeaters (not Unknown)
-                    if (sample.nodeId && sample.nodeId !== 'Unknown') {
-                        uniqueNodes.add(sample.nodeId);
+                    // Add nodes to unique set
+                    if (cell.nodes && Array.isArray(cell.nodes)) {
+                        cell.nodes.forEach(node => uniqueNodes.add(node));
                     }
                     
-                    const marker = L.circleMarker([lat, lng], {
-                        radius: 4,
-                        fillColor: '#00e676',
-                        color: '#00e676',
-                        weight: 1,
-                        opacity: 0.8,
-                        fillOpacity: 0.6
+                    totalSamples += cell.samples || 0;
+                    
+                    const rectangle = L.rectangle(bounds, {
+                        color: color,
+                        fillColor: color,
+                        weight: 2,
+                        opacity: freshness.opacity,
+                        fillOpacity: freshness.opacity * 0.3,
+                        dashArray: freshness.dashArray
                     });
+                    
+                    const successRate = cell.received + cell.lost > 0 
+                        ? ((cell.received / (cell.received + cell.lost)) * 100).toFixed(1)
+                        : 0;
                     
                     const popupContent = `
                         <div class="popup-content">
-                            <div><span class="popup-label">Node:</span><strong>${sample.nodeId || 'Unknown'}</strong></div>
-                            <div><span class="popup-label">Time:</span>${new Date(sample.timestamp).toLocaleString()}</div>
+                            <div style="color: ${freshness.color}; font-weight: bold; margin-bottom: 8px;">
+                                ${freshness.label}
+                            </div>
+                            <div><span class="popup-label">Success Rate:</span> ${successRate}%</div>
+                            <div><span class="popup-label">Received:</span> ${Math.round(cell.received)}</div>
+                            <div><span class="popup-label">Lost:</span> ${Math.round(cell.lost)}</div>
+                            <div><span class="popup-label">Samples:</span> ${cell.samples}</div>
+                            <div><span class="popup-label">Repeaters:</span> ${cell.nodes && cell.nodes.length > 0 ? cell.nodes.join(', ') : 'None'}</div>
+                            <div><span class="popup-label">Last Update:</span> ${new Date(cell.lastUpdate).toLocaleDateString()}</div>
                         </div>
                     `;
                     
-                    marker.bindPopup(popupContent);
-                    samplesLayer.addLayer(marker);
+                    rectangle.bindPopup(popupContent);
+                    coverageLayer.addLayer(rectangle);
                 });
                 
                 // Update stats
-                document.getElementById('total-samples').textContent = data.samples.length;
+                document.getElementById('total-samples').textContent = totalSamples;
                 document.getElementById('unique-nodes').textContent = uniqueNodes.size;
                 document.getElementById('last-update').textContent = new Date().toLocaleString();
                 
