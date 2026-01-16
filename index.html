@@ -1017,6 +1017,7 @@
         function changeResolution() {
             const selector = document.getElementById('resolution-selector');
             const newPrecision = parseInt(selector.value);
+            coveragePrecision = newPrecision; // Save the new precision
             
             // Re-aggregate and redraw if we have cached coverage
             if (cachedSamples) {
@@ -1098,7 +1099,8 @@
                 let repeatersHtml = 'None';
                 if (cell.repeaters && typeof cell.repeaters === 'object') {
                     const repeaterList = Object.values(cell.repeaters).map(rep => {
-                        return `<span class="repeater-link" onclick="showRepeaterInfo('${rep.name}', ${rep.rssi}, ${rep.snr}, '${rep.lastSeen}')" title="Click for details">${rep.name}</span>`;
+                        const escapedName = (rep.name || 'Unknown').replace(/'/g, "\\'");
+                        return `<span class="repeater-link" onclick="showRepeaterInfo('${escapedName}', ${rep.rssi}, ${rep.snr}, '${rep.lastSeen}')" title="Click for details">${rep.name}</span>`;
                     });
                     if (repeaterList.length > 0) {
                         repeatersHtml = repeaterList.join(', ');
@@ -1380,6 +1382,31 @@
                 // Cache coverage for resolution changes (convert to old format for compatibility)
                 cachedSamples = data.coverage;
                 
+                // Check if user has changed resolution from default
+                const selector = document.getElementById('resolution-selector');
+                const userPrecision = parseInt(selector.value);
+                if (userPrecision !== 6) {
+                    // User changed resolution, use their preference
+                    coveragePrecision = userPrecision;
+                    renderCoverageAtPrecision(data.coverage, coveragePrecision);
+                    
+                    // Update stats and return early
+                    const uniqueNodes = new Set();
+                    let totalSamples = 0;
+                    Object.entries(data.coverage).forEach(([hash, cell]) => {
+                        if (cell.repeaters && typeof cell.repeaters === 'object') {
+                            Object.keys(cell.repeaters).forEach(nodeId => {
+                                uniqueNodes.add(nodeId.substring(0, 2));
+                            });
+                        }
+                        totalSamples += cell.samples || 0;
+                    });
+                    document.getElementById('total-samples').textContent = totalSamples;
+                    document.getElementById('unique-nodes').textContent = uniqueNodes.size;
+                    document.getElementById('last-update').textContent = new Date().toLocaleString();
+                    return;
+                }
+                
                 // Clear existing coverage layer
                 coverageLayer.clearLayers();
                 
@@ -1427,7 +1454,8 @@
                         const repeaterList = Object.values(cell.repeaters).map(rep => {
                             const rssiText = rep.rssi !== null ? `${rep.rssi} dBm` : 'N/A';
                             const snrText = rep.snr !== null ? `${rep.snr} dB` : 'N/A';
-                            return `<span class="repeater-link" onclick="showRepeaterInfo('${rep.name}', ${rep.rssi}, ${rep.snr}, '${rep.lastSeen}')" title="Click for details">${rep.name}</span>`;
+                            const escapedName = (rep.name || 'Unknown').replace(/'/g, "\\'");
+                            return `<span class="repeater-link" onclick="showRepeaterInfo('${escapedName}', ${rep.rssi}, ${rep.snr}, '${rep.lastSeen}')" title="Click for details">${rep.name}</span>`;
                         });
                         if (repeaterList.length > 0) {
                             repeatersHtml = repeaterList.join(', ');
