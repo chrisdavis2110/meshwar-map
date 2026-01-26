@@ -1051,9 +1051,13 @@
                         lastUpdate: cell.lastUpdate,
                         appVersion: cell.appVersion || 'unknown'
                     };
-                } else if (cell.appVersion && cell.appVersion !== 'unknown' && cell.lastUpdate > aggregated[newHash].lastUpdate) {
-                    // Update appVersion if this cell has a newer one that's not unknown
-                    aggregated[newHash].appVersion = cell.appVersion;
+                }
+                
+                // Always prefer a real version over 'unknown', regardless of timestamp
+                if (cell.appVersion && cell.appVersion !== 'unknown') {
+                    if (aggregated[newHash].appVersion === 'unknown' || cell.lastUpdate > aggregated[newHash].lastUpdate) {
+                        aggregated[newHash].appVersion = cell.appVersion;
+                    }
                 }
                 
                 // Merge data
