@@ -241,6 +241,7 @@ export async function onRequestPost(context) {
         existingCoverage[hash].samples = newCell.samples;
         existingCoverage[hash].repeaters = newCell.repeaters;
         existingCoverage[hash].lastUpdate = newCell.lastUpdate;
+        existingCoverage[hash].appVersion = newCell.appVersion; // Update app version
         cellsUpdated++;
       } else {
         // Brand new coverage square
