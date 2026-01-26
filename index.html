@@ -1049,8 +1049,11 @@
                         samples: 0,
                         repeaters: {},
                         lastUpdate: cell.lastUpdate,
-                        appVersion: cell.appVersion
+                        appVersion: cell.appVersion || 'unknown'
                     };
+                } else if (cell.appVersion && cell.appVersion !== 'unknown' && cell.lastUpdate > aggregated[newHash].lastUpdate) {
+                    // Update appVersion if this cell has a newer one that's not unknown
+                    aggregated[newHash].appVersion = cell.appVersion;
                 }
                 
                 // Merge data
