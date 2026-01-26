@@ -247,8 +247,17 @@ export async function onRequestPost(context) {
     await context.env.WARDRIVE_DATA.put('coverage', JSON.stringify(existingCoverage));
 
     // Mark processed samples as seen with TTL (90 days)
-    const ttlSeconds = 60 * 60 * 24 * 90;
-    await Promise.all(deduped.map(s => context.env.WARDRIVE_DATA.put(`seen:${s.__id}`, '1', { expirationTtl: ttlSeconds })));
+    // Wrap in try-catch to prevent 500 error if marking fails
+    // (data is already saved, so we don't want to fail the request)
+    let seenMarked = 0;
+    try {
+      const ttlSeconds = 60 * 60 * 24 * 90;
+      await Promise.all(deduped.map(s => context.env.WARDRIVE_DATA.put(`seen:${s.__id}`, '1', { expirationTtl: ttlSeconds })));
+      seenMarked = deduped.length;
+    } catch (seenError) {
+      // Log error but don't fail the request since data is already saved
+      console.error('Failed to mark samples as seen:', seenError.message);
+    }
     
     return new Response(JSON.stringify({ 
       success: true, 
