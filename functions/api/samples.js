@@ -126,7 +126,8 @@ function aggregateSamples(samples) {
         samples: 0,
         repeaters: {},  // Changed from nodes array to repeaters object
         firstSeen: sample.timestamp || now,
-        lastUpdate: sample.timestamp || now
+        lastUpdate: sample.timestamp || now,
+        appVersion: sample.appVersion || 'unknown' // Track app version
       };
     }
     
@@ -134,6 +135,11 @@ function aggregateSamples(samples) {
     const success = sample.pingSuccess === true || 
                    (sample.nodeId && sample.nodeId !== 'Unknown');
     const failed = sample.pingSuccess === false || sample.nodeId === 'Unknown';
+    
+    // Update app version if this sample is newer
+    if (sample.appVersion && sample.timestamp >= coverage[hash].lastUpdate) {
+      coverage[hash].appVersion = sample.appVersion;
+    }
     
     // Add weighted sample
     if (success) {

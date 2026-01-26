@@ -1048,7 +1048,8 @@
                         lost: 0,
                         samples: 0,
                         repeaters: {},
-                        lastUpdate: cell.lastUpdate
+                        lastUpdate: cell.lastUpdate,
+                        appVersion: cell.appVersion
                     };
                 }
                 
@@ -1069,9 +1070,10 @@
                     });
                 }
                 
-                // Keep most recent timestamp
+                // Keep most recent timestamp and app version
                 if (cell.lastUpdate > aggregated[newHash].lastUpdate) {
                     aggregated[newHash].lastUpdate = cell.lastUpdate;
+                    aggregated[newHash].appVersion = cell.appVersion;
                 }
             });
             
@@ -1119,6 +1121,7 @@
                         <div><span class="popup-label">Repeaters:</span> ${repeatersHtml}</div>
                         <div style="font-size: 10px; color: #888; margin-top: 4px;">Click repeater name for signal details</div>
                         <div><span class="popup-label">Last Update:</span> ${new Date(cell.lastUpdate).toLocaleDateString()}</div>
+                        ${cell.appVersion ? `<div><span class="popup-label">App Version:</span> ${cell.appVersion}</div>` : ''}
                     </div>
                 `;
                 
