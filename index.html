@@ -12,6 +12,11 @@
             box-sizing: border-box;
         }
         
+        html, body {
+            height: 100%;
+            overflow-x: hidden;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #121212;
@@ -1549,12 +1554,32 @@
         }
         
         // Modal functions
+        let __scrollLockY = 0;
+        function lockPageScroll() {
+            __scrollLockY = window.scrollY || window.pageYOffset || 0;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${__scrollLockY}px`;
+            document.body.style.left = '0';
+            document.body.style.right = '0';
+            document.body.style.width = '100%';
+            document.body.classList.add('modal-open');
+        }
+        function unlockPageScroll() {
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.width = '';
+            document.body.classList.remove('modal-open');
+            window.scrollTo(0, __scrollLockY);
+        }
+        
         function closeModal(event) {
             // Only close if clicking outside content or on close button
             if (!event || event.target.id === 'signal-modal') {
                 const modal = document.getElementById('signal-modal');
                 modal.classList.remove('show');
-                document.body.classList.remove('modal-open');
+                unlockPageScroll();
                 try {
                     map.dragging.enable();
                     map.touchZoom.enable();
@@ -1567,6 +1592,17 @@
         
         // Show repeater info modal
         function showRepeaterInfo(name, rssi, snr, lastSeen) {
+            // Lock map gestures
+            try {
+                map.closePopup();
+                map.dragging.disable();
+                map.touchZoom.disable();
+                map.doubleClickZoom.disable();
+                map.boxZoom.disable();
+                map.keyboard.disable();
+            } catch(e) {}
+            // Lock page scroll (mobile Safari safe)
+            lockPageScroll();
             try {
                 map.closePopup();
                 map.dragging.disable();
@@ -1619,6 +1655,17 @@
         }
         
         function showRepeaterSignals(repeaterPrefix, geohash) {
+            // Lock map gestures
+            try {
+                map.closePopup();
+                map.dragging.disable();
+                map.touchZoom.disable();
+                map.doubleClickZoom.disable();
+                map.boxZoom.disable();
+                map.keyboard.disable();
+            } catch(e) {}
+            // Lock page scroll (mobile Safari safe)
+            lockPageScroll();
             try {
                 map.closePopup();
                 map.dragging.disable();
@@ -1702,6 +1749,24 @@
             modalBody.innerHTML = bodyContent;
             document.getElementById('signal-modal').classList.add('show');
         }
+        
+        // Improve touch handling on modal (iOS Safari): allow scroll inside content, block background
+        (function initModalTouchGuards(){
+            const overlay = document.getElementById('signal-modal');
+            const content = overlay?.querySelector('.modal-content');
+            if (!overlay) return;
+            // Prevent scrolling the page when touching overlay outside content
+            overlay.addEventListener('touchmove', (e) => {
+                if (!content || !content.contains(e.target)) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            // Allow inner scroll without bubbling to overlay
+            overlay.addEventListener('touchstart', () => {}, { passive: true });
+            content?.addEventListener('touchmove', (e) => {
+                e.stopPropagation();
+            }, { passive: false });
+        })();
         
         // Load data on page load
         loadData();
