@@ -146,6 +146,15 @@
             background: #1e1e1e;
         }
         
+        /* Let popup scroll independently on mobile */
+        .leaflet-popup-content,
+        .popup-content {
+            max-height: 60vh;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+        }
+        
         .popup-content {
             padding: 5px;
         }
@@ -587,8 +596,12 @@
                 right: 10px;
             }
             
+            /* Show theme toggle and stack below tools on mobile */
             .theme-toggle {
-                display: none;
+                display: block;
+                top: 60px;
+                right: 10px;
+                z-index: 1002;
             }
         }
     </style>
@@ -857,6 +870,19 @@
             worldCopyJump: false,
             maxBounds: [[-90, -180], [90, 180]],
             maxBoundsViscosity: 1.0
+        });
+        
+        // Prevent map from dragging when scrolling popup content; keep popup onscreen
+        map.on('popupopen', (e) => {
+            const el = e.popup.getElement()?.querySelector('.leaflet-popup-content');
+            if (el) {
+                L.DomEvent.disableScrollPropagation(el);
+                L.DomEvent.disableClickPropagation(el);
+            }
+            // Increase auto-pan padding a bit for small screens
+            e.popup.options.autoPan = true;
+            e.popup.options.autoPanPaddingTopLeft = [16, 64];
+            e.popup.options.autoPanPaddingBottomRight = [16, 64];
         });
         
         // Apply initial theme
