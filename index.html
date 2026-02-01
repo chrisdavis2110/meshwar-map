@@ -279,25 +279,39 @@
         
         .modal.show {
             display: flex;
-            align-items: center;
+            align-items: flex-end; /* bottom sheet on mobile */
             justify-content: center;
+            touch-action: none; /* don't drag page when touching overlay */
+            overscroll-behavior: contain; /* stop scroll chaining */
         }
         
         .modal-content {
             background: #1e1e1e;
             color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            max-width: 500px;
-            width: 90%;
+            padding: 16px 16px 20px 16px;
+            border-radius: 12px 12px 0 0; /* bottom sheet feel */
+            max-width: 640px;
+            width: 100%;
             max-height: 80vh;
             overflow-y: auto;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y; /* allow vertical scroll inside */
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* drag handle */
+        .sheet-handle {
+            width: 40px;
+            height: 4px;
+            background: #666;
+            border-radius: 2px;
+            margin: 0 auto 10px auto;
         }
         
         body.light-theme .modal-content {
             background: #ffffff;
             color: #000;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
         }
         
         .modal-header {
@@ -720,9 +734,10 @@
     <!-- Modal for repeater signal details -->
     <div class="modal" id="signal-modal" onclick="closeModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
             <div class="modal-header">
                 <div class="modal-title" id="modal-title">Repeater Signals</div>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <button class="modal-close" onclick="closeModal()" aria-label="Close">&times;</button>
             </div>
             <div id="modal-body">
                 <!-- Signal entries will be inserted here -->
@@ -1537,15 +1552,29 @@
         function closeModal(event) {
             // Only close if clicking outside content or on close button
             if (!event || event.target.id === 'signal-modal') {
-                document.getElementById('signal-modal').classList.remove('show');
-                try { map.dragging.enable(); } catch(e) {}
+                const modal = document.getElementById('signal-modal');
+                modal.classList.remove('show');
                 document.body.classList.remove('modal-open');
+                try {
+                    map.dragging.enable();
+                    map.touchZoom.enable();
+                    map.doubleClickZoom.enable();
+                    map.boxZoom.enable();
+                    map.keyboard.enable();
+                } catch(e) {}
             }
         }
         
         // Show repeater info modal
         function showRepeaterInfo(name, rssi, snr, lastSeen) {
-            try { map.closePopup(); map.dragging.disable(); } catch(e) {}
+            try {
+                map.closePopup();
+                map.dragging.disable();
+                map.touchZoom.disable();
+                map.doubleClickZoom.disable();
+                map.boxZoom.disable();
+                map.keyboard.disable();
+            } catch(e) {}
             document.body.classList.add('modal-open');
             const modalTitle = document.getElementById('modal-title');
             const modalBody = document.getElementById('modal-body');
@@ -1590,7 +1619,14 @@
         }
         
         function showRepeaterSignals(repeaterPrefix, geohash) {
-            try { map.closePopup(); map.dragging.disable(); } catch(e) {}
+            try {
+                map.closePopup();
+                map.dragging.disable();
+                map.touchZoom.disable();
+                map.doubleClickZoom.disable();
+                map.boxZoom.disable();
+                map.keyboard.disable();
+            } catch(e) {}
             document.body.classList.add('modal-open');
             if (!cachedSamples) return;
             
