@@ -265,13 +265,17 @@
         .modal {
             display: none;
             position: fixed;
-            z-index: 10000;
+            z-index: 100000; /* above any map/control */
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
+            inset: 0; /* ensure full-screen cover */
             background: rgba(0, 0, 0, 0.7);
         }
+        
+        /* Prevent body/map scrolling when modal is open */
+        body.modal-open { overflow: hidden; }
         
         .modal.show {
             display: flex;
@@ -1534,11 +1538,15 @@
             // Only close if clicking outside content or on close button
             if (!event || event.target.id === 'signal-modal') {
                 document.getElementById('signal-modal').classList.remove('show');
+                try { map.dragging.enable(); } catch(e) {}
+                document.body.classList.remove('modal-open');
             }
         }
         
         // Show repeater info modal
         function showRepeaterInfo(name, rssi, snr, lastSeen) {
+            try { map.closePopup(); map.dragging.disable(); } catch(e) {}
+            document.body.classList.add('modal-open');
             const modalTitle = document.getElementById('modal-title');
             const modalBody = document.getElementById('modal-body');
             
@@ -1582,6 +1590,8 @@
         }
         
         function showRepeaterSignals(repeaterPrefix, geohash) {
+            try { map.closePopup(); map.dragging.disable(); } catch(e) {}
+            document.body.classList.add('modal-open');
             if (!cachedSamples) return;
             
             // Filter samples in this coverage area that heard this repeater
